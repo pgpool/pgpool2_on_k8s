@@ -1,0 +1,82 @@
+FROM alpine:3.11
+
+ENV PG_VER 11.0
+ENV PGPOOL_VER 4.1.2
+ENV PGPOOL_CONF_DIR /usr/local/pgpool-II/etc
+ENV PGPOOL_INSTALL_DIR /usr/local/pgpool-II
+ENV PGPOOL_BINARY_DIR ${PGPOOL_INSTALL_DIR}/bin
+ENV PGPOOLCONF ${PGPOOL_CONF_DIR}/pgpool.conf
+ENV POOL_HBA_CONF ${PGPOOL_CONF_DIR}/pool_hba.conf
+ENV PCP_CONF ${PGPOOL_CONF_DIR}/pcp.conf
+ENV PGPOOL_SERVICE_PORT 9999
+
+# Create postgres user used to start Pgpool-II
+RUN set -ex; \ 
+    addgroup -g 70 -S postgres; \
+    adduser -u 70 -S -D -G postgres -H -h /var/lib/pgsql -s /bin/sh postgres; \
+    mkdir -p /var/lib/pgsql; \
+    chown -R postgres:postgres /var/lib/pgsql
+
+# Install packages
+RUN set -ex \
+    \
+    && apk add --no-cache --virtual fetch-dependencies \
+        ca-certificates \
+        openssl \
+        tar \
+    \
+    && apk add --no-cache --virtual build-dependencies \
+        bison \
+        flex \
+        file \
+        gcc \
+        g++ \
+        libbsd-doc \
+        linux-headers \
+        make \
+        openssl-dev \
+    \
+    && apk add --no-cache \
+        bash \
+        postgresql \
+        postgresql-dev \
+        sed \
+        sudo 
+
+COPY fix_compile_error.patch /tmp/pgpool/
+COPY start.sh ${PGPOOL_INSTALL_DIR}/
+
+# Install Pgpool-II
+RUN set -ex \
+    \
+    && wget -O /tmp/pgpool.tar.gz "https://pgpool.net/mediawiki/images/pgpool-II-${PGPOOL_VER}.tar.gz" \
+    && tar -zxf /tmp/pgpool.tar.gz -C /tmp/pgpool --strip-components 1 \
+    && cd /tmp/pgpool \
+    && patch -p1 < fix_compile_error.patch \
+    && ./configure \
+        --prefix=${PGPOOL_INSTALL_DIR} \
+        --with-openssl \
+    && make -j "$(nproc)" \
+    && make install \
+    \
+    && cp ${PGPOOL_CONF_DIR}/pgpool.conf.sample-stream ${PGPOOLCONF} \
+    && cp ${PGPOOL_CONF_DIR}/pool_hba.conf.sample ${POOL_HBA_CONF} \
+    && cp ${PGPOOL_CONF_DIR}/pcp.conf.sample ${PCP_CONF} \
+    && mkdir /var/run/pgpool \
+    && mkdir /var/run/postgresql \
+    && chown -R postgres:postgres /var/run/pgpool /var/run/postgresql ${PGPOOL_INSTALL_DIR} ${PGPOOL_CONF_DIR} \
+    && echo 'postgres ALL=NOPASSWD: /sbin/ip' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 || : \
+    && echo 'postgres ALL=NOPASSWD: /usr/sbin/arping' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 || :
+
+
+RUN set -ex \
+    \
+    && apk del --purge  --rdepends fetch-dependencies build-dependencies \
+    && rm -rf /tmp/*
+
+
+USER postgres
+
+ENTRYPOINT ["sh", "-c", "$PGPOOL_INSTALL_DIR/start.sh"]
+
+EXPOSE ${PGPOOL_SERVICE_PORT}

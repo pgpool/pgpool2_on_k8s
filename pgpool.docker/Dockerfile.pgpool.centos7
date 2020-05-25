@@ -1,0 +1,27 @@
+FROM centos:7
+
+ENV PG_VER 11
+ENV PGPOOL_VER 4.1
+ENV PGPOOL_CONF_DIR /etc/pgpool-II
+ENV PGPOOLCONF ${PGPOOL_CONF_DIR}/pgpool.conf
+ENV POOL_HBA_CONF ${PGPOOL_CONF_DIR}/pool_hba.conf
+ENV PCP_CONF ${PGPOOL_CONF_DIR}/pcp.conf
+ENV PGPOOL_BINARY_DIR /usr/bin
+ENV PGPOOL_SERVICE_PORT 9999
+
+RUN yum update -y
+RUN yum install -y yum-plugin-ovl sudo vim iproute openssh openssh-server openssh-clients net-tools
+RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+RUN yum install -y postgresql${PG_VER}-server
+RUN yum install -y http://www.pgpool.net/yum/rpms/${PGPOOL_VER}/redhat/rhel-7-x86_64/pgpool-II-pg${PG_VER}-${PGPOOL_VER}.0-2pgdg.rhel7.x86_64.rpm
+
+RUN echo 'root:root' | chpasswd
+
+RUN cp -p ${PGPOOL_CONF_DIR}/pgpool.conf.sample-stream ${PGPOOLCONF}
+
+COPY start.sh /tmp
+
+ENTRYPOINT ["/tmp/start.sh"]
+
+EXPOSE ${PGPOOL_SERVICE_PORT}
+

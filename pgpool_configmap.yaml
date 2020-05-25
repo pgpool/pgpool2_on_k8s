@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgpool-config
+  labels:
+    app: pgpool-config
+data:
+  pgpool.conf: |-
+    listen_addresses = '*'
+    port = 9999
+    socket_dir = '/var/run/postgresql'
+    pcp_listen_addresses = '*'
+    pcp_port = 9898
+    pcp_socket_dir = '/var/run/postgresql'
+    backend_hostname0 = 'hot-postgres'
+    backend_port0 = 5432
+    backend_weight0 = 1
+    backend_data_directory0 = '/var/pv/data'
+    backend_flag0 = 'ALWAYS_MASTER|DISALLOW_TO_FAILOVER'
+    backend_application_name0 = 'hot-postgres-0'
+    backend_hostname1 = 'hot-postgres-replicas'
+    backend_port1 = 5432
+    backend_weight1 = 1
+    backend_data_directory1 = '/var/pv/data'
+    backend_flag1 = 'DISALLOW_TO_FAILOVER'
+    backend_application_name1 = 'hot-postgres-1'
+    sr_check_user = 'postgres'
+    sr_check_period = 10
+    enable_pool_hba = on
+    master_slave_mode = on
+    num_init_children = 32
+    max_pool = 4
+    child_life_time = 300
+    child_max_connections = 0
+    connection_life_time = 0
+    client_idle_limit = 0
+    connection_cache = on
+    load_balance_mode = on
+  pcp.conf: |-
+    postgres:e8a48653851e28c69d0506508fb27fc5
+  pool_passwd: |-
+    postgres:md53175bce1d3201d16594cebf9d7eb3f9d
+  pool_hba.conf: |-
+    local   all         all                               trust
+    host    all         all         127.0.0.1/32          trust
+    host    all         all         ::1/128               trust
+    host    all         all         0.0.0.0/0             md5

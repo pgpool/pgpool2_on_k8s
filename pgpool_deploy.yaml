@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgpool
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgpool
+  template:
+    metadata:
+      labels:
+        app: pgpool
+    spec:
+      containers:
+      - name: pgpool
+        image: pgpool/pgpool:4.1
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: hot-postgres-auth
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: hot-postgres-auth
+              key: POSTGRES_PASSWORD
+        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME0
+          value: "hot-postgres"
+        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME1
+          value: "hot-postgres-replicas"
+        - name: PGPOOL_PARAMS_BACKEND_APPLICATION_NAME0
+          value: "hot-postgres"
+        - name: PGPOOL_PARAMS_BACKEND_APPLICATION_NAME1
+          value: "hot-postgres-1"
+      - name: pgpool-stats
+        image: pgpool/pgpool2_exporter:1.0
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: hot-postgres-auth
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: hot-postgres-auth
+              key: POSTGRES_PASSWORD
+        - name: PGPOOL_SERVICE
+          value: "localhost"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgpool
+spec:
+  selector:
+    app: pgpool
+  ports:
+  - name: pgpool-port
+    protocol: TCP
+    port: 9999
+    targetPort: 9999
+---
+apiVersion: v1
+kind: Service 
+metadata:
+  name: pgpool-stats
+  labels: 
+    app: pgpool-stats
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9719"
+    prometheus.io/scrape: "true"
+spec:
+  selector:
+    app: pgpool
+  ports:  
+  - name: pgpool-stats-port
+    protocol: TCP
+    port: 9719
+    targetPort: 9719
