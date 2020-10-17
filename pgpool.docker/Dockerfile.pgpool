@@ -1,7 +1,6 @@
 FROM alpine:3.11
 
-ENV PG_VER 11.0
-ENV PGPOOL_VER 4.1.2
+ENV PGPOOL_VER 4.2alpha1
 ENV PGPOOL_CONF_DIR /usr/local/pgpool-II/etc
 ENV PGPOOL_INSTALL_DIR /usr/local/pgpool-II
 ENV PGPOOL_BINARY_DIR ${PGPOOL_INSTALL_DIR}/bin
@@ -41,7 +40,7 @@ RUN set -ex \
         postgresql \
         postgresql-dev \
         sed \
-        sudo 
+        sudo
 
 COPY fix_compile_error.patch /tmp/pgpool/
 COPY start.sh ${PGPOOL_INSTALL_DIR}/
