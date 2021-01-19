@@ -7,7 +7,7 @@ ENV PGPOOLCONF ${PGPOOL_CONF_DIR}/pgpool.conf
 ENV POOL_HBA_CONF ${PGPOOL_CONF_DIR}/pool_hba.conf
 ENV PCP_CONF ${PGPOOL_CONF_DIR}/pcp.conf
 ENV PGPOOL_BINARY_DIR /usr/bin
-ENV PGPOOL_SERVICE_PORT 9999
+ENV PGPOOL_PORT 9999
 
 RUN yum update -y
 RUN yum install -y yum-plugin-ovl sudo vim iproute openssh openssh-server openssh-clients net-tools
@@ -23,5 +23,5 @@ COPY start.sh /tmp
 
 ENTRYPOINT ["/tmp/start.sh"]
 
-EXPOSE ${PGPOOL_SERVICE_PORT}
+EXPOSE ${PGPOOL_PORT}
 
