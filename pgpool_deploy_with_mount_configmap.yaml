@@ -14,27 +14,8 @@ spec:
     spec:
       containers:
       - name: pgpool
-        image: pgpool/pgpool:4.1
+        image: pgpool/pgpool:4.2.1
         command: ["sh", "-c", "$PGPOOL_BINARY_DIR/pgpool -n -f $PGPOOLCONF -F $PCP_CONF -a $POOL_HBA_CONF"]
-        env:
-        - name: POSTGRES_USER
-          valueFrom:
-            secretKeyRef:
-              name: hot-postgres-auth
-              key: POSTGRES_USER
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: hot-postgres-auth
-              key: POSTGRES_PASSWORD
-        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME0
-          value: "hot-postgres"
-        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME1
-          value: "hot-postgres-replicas"
-        - name: PGPOOL_PARAMS_BACKEND_APPLICATION_NAME0
-          value: "hot-postgres"
-        - name: PGPOOL_PARAMS_BACKEND_APPLICATION_NAME1
-          value: "hot-postgres-1"
         volumeMounts:
         - name: pgpool-config
           mountPath: /usr/local/pgpool-II/etc
@@ -72,10 +53,10 @@ spec:
     targetPort: 9999
 ---
 apiVersion: v1
-kind: Service 
+kind: Service
 metadata:
   name: pgpool-stats
-  labels: 
+  labels:
     app: pgpool-stats
   annotations:
     prometheus.io/path: /metrics
@@ -84,7 +65,7 @@ metadata:
 spec:
   selector:
     app: pgpool
-  ports:  
+  ports:
   - name: pgpool-stats-port
     protocol: TCP
     port: 9719
