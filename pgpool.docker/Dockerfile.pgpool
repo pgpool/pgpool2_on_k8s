@@ -1,12 +1,9 @@
 FROM alpine:3.11
 
-ENV PGPOOL_VER 4.2.1
-ENV PGPOOL_CONF_DIR /usr/local/pgpool-II/etc
-ENV PGPOOL_INSTALL_DIR /usr/local/pgpool-II
-ENV PGPOOL_BINARY_DIR ${PGPOOL_INSTALL_DIR}/bin
-ENV PGPOOLCONF ${PGPOOL_CONF_DIR}/pgpool.conf
-ENV POOL_HBA_CONF ${PGPOOL_CONF_DIR}/pool_hba.conf
-ENV PCP_CONF ${PGPOOL_CONF_DIR}/pcp.conf
+ENV PGPOOL_VER 4.2.2
+
+ENV PGPOOL_INSTALL_DIR /opt/pgpool-II
+ENV PGPOOL_CONF_VOLUME /config
 ENV PGPOOL_PORT 9999
 
 # Create postgres user used to start Pgpool-II
@@ -43,7 +40,8 @@ RUN set -ex \
         sudo
 
 COPY fix_compile_error.patch /tmp/pgpool/
-COPY start.sh ${PGPOOL_INSTALL_DIR}/
+COPY entrypoint.sh ${PGPOOL_INSTALL_DIR}/bin/
+COPY start.sh ${PGPOOL_INSTALL_DIR}/bin/
 
 # Install Pgpool-II
 RUN set -ex \
@@ -58,12 +56,9 @@ RUN set -ex \
     && make -j "$(nproc)" \
     && make install \
     \
-    && cp ${PGPOOL_CONF_DIR}/pgpool.conf.sample-stream ${PGPOOLCONF} \
-    && cp ${PGPOOL_CONF_DIR}/pool_hba.conf.sample ${POOL_HBA_CONF} \
-    && cp ${PGPOOL_CONF_DIR}/pcp.conf.sample ${PCP_CONF} \
     && mkdir /var/run/pgpool \
     && mkdir /var/run/postgresql \
-    && chown -R postgres:postgres /var/run/pgpool /var/run/postgresql ${PGPOOL_INSTALL_DIR} ${PGPOOL_CONF_DIR} \
+    && chown -R postgres:postgres /var/run/pgpool /var/run/postgresql ${PGPOOL_INSTALL_DIR} \
     && echo 'postgres ALL=NOPASSWD: /sbin/ip' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 || : \
     && echo 'postgres ALL=NOPASSWD: /usr/sbin/arping' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 || :
 
@@ -76,6 +71,7 @@ RUN set -ex \
 
 USER postgres
 
-ENTRYPOINT ["sh", "-c", "$PGPOOL_INSTALL_DIR/start.sh"]
+ENTRYPOINT ["/opt/pgpool-II/bin/entrypoint.sh"]
+CMD ["/opt/pgpool-II/bin/start.sh"]
 
 EXPOSE ${PGPOOL_PORT}

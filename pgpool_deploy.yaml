@@ -14,26 +14,21 @@ spec:
     spec:
       containers:
       - name: pgpool
-        image: pgpool/pgpool:4.1
+        image: pgpool/pgpool:4.2.2
         env:
-        - name: POSTGRES_USER
+        - name: POSTGRES_USERNAME
           valueFrom:
             secretKeyRef:
-              name: hot-postgres-auth
-              key: POSTGRES_USER
+              name: hippo-postgres-secret
+              key: username
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: hot-postgres-auth
-              key: POSTGRES_PASSWORD
-        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME0
-          value: "hot-postgres"
-        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME1
-          value: "hot-postgres-replicas"
-        - name: PGPOOL_PARAMS_BACKEND_APPLICATION_NAME0
-          value: "hot-postgres"
-        - name: PGPOOL_PARAMS_BACKEND_APPLICATION_NAME1
-          value: "hot-postgres-1"
+              name: hippo-postgres-secret
+              key: password
+        volumeMounts:
+        - name: pgpool-config
+          mountPath: /config
       - name: pgpool-stats
         image: pgpool/pgpool2_exporter:1.0
         env:
@@ -49,6 +44,10 @@ spec:
               key: POSTGRES_PASSWORD
         - name: PGPOOL_SERVICE
           value: "localhost"
+      volumes:
+      - name: pgpool-config
+        configMap:
+          name: pgpool-config
 ---
 apiVersion: v1
 kind: Service
@@ -64,10 +63,10 @@ spec:
     targetPort: 9999
 ---
 apiVersion: v1
-kind: Service 
+kind: Service
 metadata:
   name: pgpool-stats
-  labels: 
+  labels:
     app: pgpool-stats
   annotations:
     prometheus.io/path: /metrics
@@ -76,7 +75,7 @@ metadata:
 spec:
   selector:
     app: pgpool
-  ports:  
+  ports:
   - name: pgpool-stats-port
     protocol: TCP
     port: 9719
