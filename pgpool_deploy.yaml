@@ -32,16 +32,16 @@ spec:
       - name: pgpool-stats
         image: pgpool/pgpool2_exporter:1.0
         env:
-        - name: POSTGRES_USER
+        - name: POSTGRES_USERNAME
           valueFrom:
             secretKeyRef:
-              name: hot-postgres-auth
-              key: POSTGRES_USER
+              name: hippo-postgres-secret
+              key: username
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: hot-postgres-auth
-              key: POSTGRES_PASSWORD
+              name: hippo-postgres-secret
+              key: password
         - name: PGPOOL_SERVICE
           value: "localhost"
       volumes:
