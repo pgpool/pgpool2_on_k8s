@@ -4,7 +4,6 @@ ENV PGPOOL_VER 4.2.2
 
 ENV PGPOOL_INSTALL_DIR /opt/pgpool-II
 ENV PGPOOL_CONF_VOLUME /config
-ENV PGPOOL_PORT 9999
 
 # Create postgres user used to start Pgpool-II
 RUN set -ex; \ 
@@ -18,7 +17,6 @@ RUN set -ex \
     \
     && apk add --no-cache --virtual fetch-dependencies \
         ca-certificates \
-        openssl \
         tar \
     \
     && apk add --no-cache --virtual build-dependencies \
@@ -36,6 +34,7 @@ RUN set -ex \
         bash \
         postgresql \
         postgresql-dev \
+        openssl \
         sed \
         sudo
 
@@ -74,4 +73,4 @@ USER postgres
 ENTRYPOINT ["/opt/pgpool-II/bin/entrypoint.sh"]
 CMD ["/opt/pgpool-II/bin/start.sh"]
 
-EXPOSE ${PGPOOL_PORT}
+EXPOSE 9999
