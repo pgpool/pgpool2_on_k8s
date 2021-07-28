@@ -59,7 +59,7 @@ if [[ -f ${PGPOOL_CONF_VOLUME}/pgpool.conf ]]; then
 else
 
     echo "Configuring Pgpool-II..."
-    echo "No cunstom pgpool.conf detected. Use environment variables and default config."
+    echo "No custom pgpool.conf detected. Use environment variables and default config."
 
     cp ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf.sample-stream ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf
     cp ${PGPOOL_INSTALL_DIR}/etc/pool_hba.conf.sample ${PGPOOL_INSTALL_DIR}/etc/pool_hba.conf
