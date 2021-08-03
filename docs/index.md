@@ -194,14 +194,14 @@ backend_hostname1='hot-postgres-replicas'
 Let's deploy Pgpool-II pod.
 
 ```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool_deploy.yaml --namespace=demo
+# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-minimal.yaml --namespace=demo
 ```
 
 Alternatively, if you want to modify more Pgpool-II parameters, you can configure Pgpool-II using `ConfigMap`.
 
 ```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool_configmap.yaml --namespace=demo
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool_deploy_with_mount_configmap.yaml --namespace=demo
+# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-configmap.yaml --namespace=demo
+# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-metrics.yaml --namespace=demo
 ```
 
 After deploying Pgpool-II, we can see that Pgpool-II pod `pgpool-7c6bf8d65d-j6kh4 ` is in `running` status.
@@ -283,7 +283,7 @@ Configure Prometheus Server using `ConfigMap`.
 
 ```
 # kubectl create namespace monitoring
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/prometheus_configmap.yaml --namespace=monitoring
+# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/prometheus-configmap.yaml --namespace=monitoring
 ```
 
 Deploy Prometheus server.
