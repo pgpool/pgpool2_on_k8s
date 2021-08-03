@@ -1,6 +1,6 @@
 FROM alpine:3.11
 
-ENV PGPOOL_VER 4.2.2
+ARG PGPOOL_VER
 
 ENV PGPOOL_INSTALL_DIR /opt/pgpool-II
 ENV PGPOOL_CONF_VOLUME /config
@@ -13,7 +13,7 @@ RUN set -ex; \
     chown -R postgres:postgres /var/lib/pgsql
 
 # Install packages
-RUN set -ex \
+RUN set -eux \
     \
     && apk add --no-cache --virtual fetch-dependencies \
         ca-certificates \
@@ -43,7 +43,7 @@ COPY entrypoint.sh ${PGPOOL_INSTALL_DIR}/bin/
 COPY start.sh ${PGPOOL_INSTALL_DIR}/bin/
 
 # Install Pgpool-II
-RUN set -ex \
+RUN set -eux \
     \
     && wget -O /tmp/pgpool.tar.gz "https://pgpool.net/mediawiki/images/pgpool-II-${PGPOOL_VER}.tar.gz" \
     && tar -zxf /tmp/pgpool.tar.gz -C /tmp/pgpool --strip-components 1 \
@@ -58,11 +58,11 @@ RUN set -ex \
     && mkdir /var/run/pgpool \
     && mkdir /var/run/postgresql \
     && chown -R postgres:postgres /var/run/pgpool /var/run/postgresql ${PGPOOL_INSTALL_DIR} \
-    && echo 'postgres ALL=NOPASSWD: /sbin/ip' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 || : \
-    && echo 'postgres ALL=NOPASSWD: /usr/sbin/arping' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 || :
+    && echo 'postgres ALL=NOPASSWD: /sbin/ip' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 \
+    && echo 'postgres ALL=NOPASSWD: /usr/sbin/arping' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1
 
 
-RUN set -ex \
+RUN set -eux \
     \
     && apk del --purge  --rdepends fetch-dependencies build-dependencies \
     && rm -rf /tmp/*
