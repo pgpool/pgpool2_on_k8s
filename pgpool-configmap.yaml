@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: pgpool-config
   labels:
-    app: pgpool-config
+    name: pgpool-config
 data:
   pgpool.conf: |-
     listen_addresses = '*'
@@ -12,11 +12,11 @@ data:
     pcp_listen_addresses = '*'
     pcp_port = 9898
     pcp_socket_dir = '/var/run/pgpool'
-    backend_hostname0 = 'hippo'
+    backend_hostname0 = 'mypostgres'
     backend_port0 = 5432
     backend_weight0 = 1
     backend_flag0 = 'ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
-    backend_hostname1 = 'hippo-replica'
+    backend_hostname1 = 'mypostgres-replica'
     backend_port1 = 5432
     backend_weight1 = 1
     backend_flag1 = 'DISALLOW_TO_FAILOVER'
@@ -31,7 +31,7 @@ data:
     client_idle_limit = 0
     connection_cache = on
     load_balance_mode = on
-    ssl = on
+    ssl = off
     failover_on_backend_error = off
   pool_hba.conf: |-
     local   all         all                               trust

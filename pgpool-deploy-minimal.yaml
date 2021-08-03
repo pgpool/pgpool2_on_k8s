@@ -16,6 +16,24 @@ spec:
       - name: pgpool
         image: pgpool/pgpool
         env:
+        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME0
+          value: "mypostgres"
+        - name: PGPOOL_PARAMS_BACKEND_PORT0
+          value: "5432"
+        - name: PGPOOL_PARAMS_BACKEND_WEIGHT0
+          value: "1"
+        - name: PGPOOL_PARAMS_BACKEND_FLAG0
+          value: "ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER"
+        - name: PGPOOL_PARAMS_BACKEND_HOSTNAME1
+          value: "mypostgres-replica"
+        - name: PGPOOL_PARAMS_BACKEND_PORT1
+          value: "5432"
+        - name: PGPOOL_PARAMS_BACKEND_WEIGHT1
+          value: "1"
+        - name: PGPOOL_PARAMS_BACKEND_FLAG1
+          value: "DISALLOW_TO_FAILOVER"
+        - name: PGPOOL_PARAMS_FAILOVER_ON_BACKEND_ERROR
+          value: "off"
         - name: POSTGRES_USERNAME
           valueFrom:
             secretKeyRef:
@@ -26,13 +44,6 @@ spec:
             secretKeyRef:
               name: mypostgres-postgres-secret
               key: password
-        volumeMounts:
-        - name: pgpool-config
-          mountPath: /config
-      volumes:
-      - name: pgpool-config
-        configMap:
-          name: pgpool-config
 ---
 apiVersion: v1
 kind: Service

@@ -29,6 +29,23 @@ spec:
         volumeMounts:
         - name: pgpool-config
           mountPath: /config
+      - name: pgpool-stats
+        image: pgpool/pgpool2_exporter
+        env:
+        - name: POSTGRES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mypostgres-postgres-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mypostgres-postgres-secret
+              key: password
+        - name: PGPOOL_SERVICE
+          value: "localhost"
+        - name: PGPOOL_SERVICE_PORT
+          value: "9999"
       volumes:
       - name: pgpool-config
         configMap:
@@ -46,3 +63,22 @@ spec:
     protocol: TCP
     port: 9999
     targetPort: 9999
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgpool-stats
+  labels:
+    app: pgpool-stats
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9719"
+    prometheus.io/scrape: "true"
+spec:
+  selector:
+    app: pgpool
+  ports:
+  - name: pgpool-stats-port
+    protocol: TCP
+    port: 9719
+    targetPort: 9719
