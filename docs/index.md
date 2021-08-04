@@ -286,7 +286,7 @@ hostssl    all         all         0.0.0.0/0             md5
 
 [Pgpool-II Exporter](https://github.com/pgpool/pgpool2_exporter) is a Prometheus exporter for Pgpool-II metrics.
 
-Sample manifest `pgpool-deploy-monitor.yaml` is used to deploy Pgpool-II container and Pgpool-II Exporter container in the Pgpool-II Pod.
+The example manifest `pgpool-deploy-metrics.yaml` is used to deploy Pgpool-II container and Pgpool-II Exporter container in the Pgpool-II Pod.
 
 ```
 spec:
