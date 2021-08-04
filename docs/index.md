@@ -1,311 +1,333 @@
 # Run Pgpool-II on Kubernetes
 
-This documentation explains how to run [Pgpool-II](https://pgpool.net "Pgpool-II") and PostgreSQL Streaming Replication with [KubeDB](https://kubedb.com/ "KubeDB") on Kubernetes.
+This documentation describes how to run [Pgpool-II](https://pgpool.net "Pgpool-II") to achieve read query load balancing and connection pooling on Kubernetes. 
 
 ## Introduction
 
-In a database cluster, replicas can't be created as easily as web servers, because you must consider
-the difference between Primary and Standby. PostgreSQL operators simplify the processes of deploying
-and managing a PostgreSQL cluster on Kubernetes. In this documentation, we use `KubeDB` to deploy and
-manage a PostgreSQL cluster.
+Because PostgreSQL is a stateful application and managing PostgreSQL has very specific requirements (e.g. backup, recovery, automated failover, etc), the built-in functionality of Kubernetes can't handle these tasks. Therefore, an Operator that extends the functionality of the Kubernetes to create and manage PostgreSQL is required.
 
-And on kubernetes Pgpool-II's health check, automatic failover, Watchdog and online recovery features aren't required. You need to only enable load balancing and connection pooling.
+There are several PostgreSQL operators, such as [Crunchy PostgreSQL Operator](https://github.com/CrunchyData/postgres-operator), [Zalando PostgreSQL Operator ](https://github.com/zalando/postgres-operator) and [KubeDB](https://github.com/kubedb/operator). However, these operators don't provide query load balancing functionality.
 
-## Requirements
+This documentation describes how to combine PostgreSQL Operator with Pgpool-II to deploy a PostgreSQL cluster with query load balancing and connection pooling capability on Kubernetes. Pgpool-II can be combined with any of the PostgreSQL operators mentioned above. 
 
-Before you start the install and configuration processes, please check the following prerequisites.
+## Prerequisites
+
+Before you start the configuration process, please check the following prerequisites. 
 - Make sure you have a Kubernetes cluster, and the `kubectl` is installed.
 - Kebernetes 1.15 or older is required.
+- PostgreSQL Operator and a PostgreSQL cluster are installed. For the installation of each PostgreSQL Operator, please see the documentation below:
+  - [Crunchy PostgreSQL Operator](https://access.crunchydata.com/documentation/postgres-operator/latest/installation/)
+  - [Zalando PostgreSQL Operator ](https://postgres-operator.readthedocs.io/en/latest/quickstart/)
+  - [KubeDB](https://kubedb.com/docs/latest/setup/)
 
-## Cluster architecture with KubeDB and Pgpool-II
+## Architecture
 
-![architecture](https://user-images.githubusercontent.com/8177517/83357821-c0f05d80-a3a9-11ea-940e-9617c291db47.png)
-
-## Install KubeDB Operator
-
-We use a separate namespace to install KubeDB.
-
-```
-# kubectl create namespace demo
-# curl -fsSL https://raw.githubusercontent.com/kubedb/installer/v0.13.0-rc.0/deploy/kubedb.sh | bash -s -- --namespace=demo
-```
-
-After installing, a running KubeDB-operator pod is created.
-
-```
-# kubectl get pod -n demo
-NAME                              READY   STATUS    RESTARTS   AGE
-kubedb-operator-5565fbdb8-hrtv8   1/1     Running   1          7m28s
-```
-
-## Install PostgreSQL SR with Hot Standby
-
-### Create secret
-
-By default, superuser name is postgres and password is randomly generated.
-If you want to use a custom password, please create the secret manually.
-The data specified in a secret need to be encoded using base64.
-
-```
-# echo -n 'postgres' | base64
-cG9zdGdyZXM=
-```
-
-Here we set `postgres` as postgres user's password.
-
-```
-apiVersion: v1
-kind: Secret
-metadata:
-  name: hot-postgres-auth
-type: Opaque
-data:
-  POSTGRES_USER: cG9zdGdyZXM=
-  POSTGRES_PASSWORD: cG9zdGdyZXM=
-```
-```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/hot-postgres-auth.yaml --namespace=demo
-```
-
-### Create PostgreSQL cluster with streaming replication
-
-We use KubeDB to create a PostgreSQL cluster with Monitoring Enabled.
-Below is an example of Postgres object which creates a PostgreSQL cluster (1 Primary and 2 Standby)
-with Monitoring Enabled.
-
-```
-apiVersion: kubedb.com/v1alpha1
-kind: Postgres
-metadata:
-  name: hot-postgres
-spec:
-  version: "11.2"
-  replicas: 3
-  standbyMode: Hot
-  databaseSecret:
-    secretName: hot-postgres-auth
-  storageType: Durable
-  storage:
-    storageClassName: "standard"
-    accessModes:
-    - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-  monitor:
-    agent: prometheus.io/builtin
-```
-
-- `spec.replicas: 3` specifies that we create three PostgreSQL pods
-- `spec.standbyMode: Hot` specifies that one server is Primary server and two others are Standby servers
-- `spec.monitor.agent: prometheus.io/builtin` enables build-in monitoring using Prometheus
-
-```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/hot-postgres.yaml --namespace=demo
-```
-
-After applying the YAML file above you can see that three pods are created.
-`hot-postgres-0` is Primary server and `hot-postgres-1` and `hot-postgres-2` are Standby servers.
-
-```
-# kubectl get pod -n demo --selector="kubedb.com/name=hot-postgres" --show-labels
-NAME             READY   STATUS    RESTARTS   AGE   LABELS
-hot-postgres-0   2/2     Running   0          20s   controller-revision-hash=hot-postgres-69bd777947,kubedb.com/kind=Postgres,kubedb.com/name=hot-postgres,kubedb.com/role=primary,statefulset.kubernetes.io/pod-name=hot-postgres-0
-hot-postgres-1   2/2     Running   0          16s   controller-revision-hash=hot-postgres-69bd777947,kubedb.com/kind=Postgres,kubedb.com/name=hot-postgres,kubedb.com/role=replica,statefulset.kubernetes.io/pod-name=hot-postgres-1
-hot-postgres-2   2/2     Running   0          13s   controller-revision-hash=hot-postgres-69bd777947,kubedb.com/kind=Postgres,kubedb.com/name=hot-postgres,kubedb.com/role=replica,statefulset.kubernetes.io/pod-name=hot-postgres-2
-```
-
-And three `Service` are created.
-`hot-postgres` service is mapped to Primary server and `hot-postgres-replicas` service is mapped to Standby servers.
-`hot-postgres-stats` service is created for monitoring.
-
-```
-# kubectl get svc -n demo
-NAME                    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)     AGE
-hot-postgres            ClusterIP   10.106.51.191   <none>        5432/TCP    46s
-hot-postgres-replicas   ClusterIP   10.103.116.79   <none>        5432/TCP    46s
-hot-postgres-stats      ClusterIP   10.111.127.8    <none>        56790/TCP   36s
-kubedb                  ClusterIP   None            <none>        <none>      46s
-kubedb-operator         ClusterIP   10.105.34.15    <none>        443/TCP     20m
-```
-
-### Connect to PostgreSQL using Service
-
-#### Connect to Primary's service  
-  
-Two Standby servers are connected to the Primary server.
-
-```
-# psql -h 10.106.51.191 -U postgres -c "SELECT * FROM pg_stat_replication"
- pid | usesysid | usename  | application_name | client_addr | client_hostname | client_port |         backend_start  
-       | backend_xmin |   state   | sent_lsn  | write_lsn | flush_lsn | replay_lsn | write_lag | flush_lag | replay_l
-ag | sync_priority | sync_state 
------+----------+----------+------------------+-------------+-----------------+-------------+------------------------
--------+--------------+-----------+-----------+-----------+-----------+------------+-----------+-----------+---------
----+---------------+------------
-  56 |       10 | postgres | hot-postgres-1   | 10.34.0.0   |                 |       40324 | 2020-06-01 15:35:54.738
-404+00 |              | streaming | 0/4000060 | 0/4000060 | 0/4000060 | 0/4000060  |           |           |         
-   |             0 | async
-  60 |       10 | postgres | hot-postgres-2   | 10.40.0.0   |                 |       40164 | 2020-06-01 15:35:57.358
-563+00 |              | streaming | 0/4000060 | 0/4000060 | 0/4000060 | 0/4000060  |           |           |         
-   |             0 | async
-```
-
-#### Connect to Standby's service  
-  
-Requests are load balanced across the replicas.
-
-```
-# psql -h 10.103.116.79 -U postgres -c "SELECT inet_server_addr();"
- inet_server_addr 
-------------------
- 10.36.0.2
-
-# psql -h 10.103.116.79 -U postgres -c "SELECT inet_server_addr();" 
- inet_server_addr 
-------------------
- 10.40.0.3
-``` 
+![pgpool-on-k8s](https://user-images.githubusercontent.com/8177517/128176443-b56f3f98-cfd5-4731-a843-b8fb7f1ef77b.gif)
 
 ## Deploy Pgpool-II
 
-Next, let's deploy Pgpool-II pod that contains a Pgpool-II container and a [Pgpool-II Exporter](https://github.com/pgpool/pgpool2_exporter "Pgpool-II Exporter") container.
+Pgpool-II's health check, automated failover, watchdog and online recovery features aren't required on Kubernetes. You need to only enable load balancing and connection pooling.
 
-Environment variables starting with `PGPOOL_PARAMS_` can be converted to Pgpool-II's configuration parameters
-and these values can override the default configurations.
+The Pgpool-II pod should work with the minimal configuration below: 
+```
+backend_hostname0 = '<primary service name>'
+backend_hostname1 = '<replica service name>'
+backend_port0 = '5432'
+backend_port1 = '5432'
+backend_flag0 = 'ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
+backend_flag1 = 'DISALLOW_TO_FAILOVER'
 
-For example, here we set Primary and Standby `Service` name to environment variables.
+failover_on_backend_error = off
+
+sr_check_period = 10                         (when using streaming replication check)
+sr_check_user='username of PostgreSQL user'  (when using streaming replication check)
+
+load_balance_mode = on
+connection_cache = on
+listen_addresses = '*'
+```
+There are two ways to configure Pgpool-II.
+
+* Using [environment variables](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/)
+* Using a [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/)
+
+You may need to configure client authentication and more parameters to setup your production-ready environment. We recommend using a `ConfigMap` to configure `pgpool.conf` and `pool_hba.conf` to setup a production-ready database environment.
+
+The following sections describe how to configure and deploy Pgpool-II pod using environment variables and ConfigMap respectively. 
+These sections are using minimal configuration for demonstration purposes. We recommend that you read section [Pgpool-II configuration](#Pgpool-II-configuration) to see how to properly configure Pgpool-II. 
+
+You can download the example manifests used for deploying Pgpool-II from [here](https://github.com/pgpool/pgpool2_on_k8s). 
+Note, we provide the example manifests as an example only to simplify the installation.
+All configuration options are not documented in the example manifests.
+you should consider updating the manifests based on your Kubernetes environment and configuration preferences.
+For more advanced configuration of Pgpool-II, please refer to the [Pgpool-II docs](https://www.pgpool.net/docs/latest/en/html/admin.html). 
+
+### Configure Pgpool-II using environment variables
+
+Kubernetes environment variables can be passed to a container in a pod. You can define environment variables in the deployment manifest to configure Pgpool-II's parameters. `pgpool-deploy-minimal.yaml` is an example manifest including the minimal settings of environment variables. You can download `pgpool-deploy-minimal.yaml` and modify the environment variables in this manifest.
+
+```
+curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-minimal.yaml
+```
+   
+Environment variables starting with `PGPOOL_PARAMS_` can be converted to Pgpool-II's configuration parameters and these values can override the default settings.
+
+On kubernetes, you need to specify <strong>only two backend nodes</strong>. Update `pgpool-deploy-minimal.yaml` based on your Kubernetes and PostgreSQL environment. 
+
+* `backend_hostname`: Specify the primary service name to `backend_hostname0` and the replica service name to `backend_hostname1`. 
+* `backend_flag`: Because failover is managed by Kubernetes, specify `DISALLOW_TO_FAILOVER` flag to `backend_flag` for both of the two nodes and `ALWAYS_PRIMARY` flag to `backend_flag0`. 
+* `backend_data_directory`: The setting of `backend_data_directory` is not required.
+
+For example, the following environment variables defined in manifest, 
 
 ```
 env:
 - name: PGPOOL_PARAMS_BACKEND_HOSTNAME0
-  value: "hot-postgres"
+  value: "mypostgres"
+- name: PGPOOL_PARAMS_BACKEND_PORT0
+  value: "5432"
+- name: PGPOOL_PARAMS_BACKEND_FLAG0
+  value: "ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER"
 - name: PGPOOL_PARAMS_BACKEND_HOSTNAME1
-  value: "hot-postgres-replicas"
+  value: "mypostgres-replica"
+- name: PGPOOL_PARAMS_BACKEND_PORT1
+  value: "5432"
+- name: PGPOOL_PARAMS_BACKEND_FLAG1
+  value: "DISALLOW_TO_FAILOVER"
 ```
 
-The environment variables above will be convert to the following configurations.
+will be convert to the following configuration parameters in `pgpool.conf`. 
 
 ```
-backend_hostname0='hot-postgres'
-backend_hostname1='hot-postgres-replicas'
+backend_hostname0 = 'mypostgres'
+backend_port0 = '5432'
+backend_flag0 = 'ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
+backend_hostname1 = 'mypostgres-replica'
+backend_port1 = '5432'
+backend_flag1 = 'DISALLOW_TO_FAILOVER'
 ```
 
-Let's deploy Pgpool-II pod.
+Then, you need to define environment variables that contain the `username` and `password` of PostgreSQL users for client authentication. For more details, see section [Register password to pool_passwd](#Register-password-to-pool_passwd).
+
+After updating the manifest, run the following command to deploy Pgpool-II.
 
 ```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-minimal.yaml --namespace=demo
+kubectl apply -f pgpool-deploy-minimal.yaml
 ```
 
-Alternatively, if you want to modify more Pgpool-II parameters, you can configure Pgpool-II using `ConfigMap`.
+### Configure Pgpool-II using ConfigMap
+
+Alternatively, you can use a Kubernetes `ConfigMap` to store the entire `pgpool.conf` and `pool_hba.conf`. The `ConfigMap` can be mounted to Pgpool-II's container as a volume.
+
+You can download the example manifest files that define the `ConfigMap` and `Deployment` from repository.
 
 ```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-configmap.yaml --namespace=demo
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-metrics.yaml --namespace=demo
+curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-configmap.yaml
+curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy.yaml
 ```
 
-After deploying Pgpool-II, we can see that Pgpool-II pod `pgpool-7c6bf8d65d-j6kh4 ` is in `running` status.
+The `ConfigMap` is in the following format. You can update it based on your configuration preferences. 
 
 ```
-#  kubectl get pod -n demo
-NAME                              READY   STATUS    RESTARTS   AGE
-hot-postgres-0                    2/2     Running   0          5m56s
-hot-postgres-1                    2/2     Running   0          5m52s
-hot-postgres-2                    2/2     Running   0          5m49s
-kubedb-operator-5565fbdb8-hrtv8   1/1     Running   1          25m
-pgpool-7c6bf8d65d-j6kh4           2/2     Running   0          4m35s
-```
-
-`pgpool` and `pgpool-stats` services are created.
-
-```
-# kubectl get svc -n demo
-NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE
-hot-postgres            ClusterIP   10.106.51.191    <none>        5432/TCP    20m
-hot-postgres-replicas   ClusterIP   10.103.116.79    <none>        5432/TCP    20m
-hot-postgres-stats      ClusterIP   10.111.127.8     <none>        56790/TCP   20m
-kubedb                  ClusterIP   None             <none>        <none>      20m
-kubedb-operator         ClusterIP   10.105.34.15     <none>        443/TCP     39m
-pgpool                  ClusterIP   10.97.110.176    <none>        9999/TCP    18m
-pgpool-stats            ClusterIP   10.106.193.217   <none>        9719/TCP    18m
-```
-
-### Try query load balancing
-
-Let's connect to `pgpool` service and run `show pool_nodes`.
-Initially `select_cnt` columns are 0.
-
-```
-# psql -h 10.97.110.176 -U postgres -p 9999 -c "show pool_nodes"
- node_id |       hostname        | port | status | lb_weight |  role   | select_cnt | load_balance_node | replication
-_delay | replication_state | replication_sync_state | last_status_change  
----------+-----------------------+------+--------+-----------+---------+------------+-------------------+------------
--------+-------------------+------------------------+---------------------
- 0       | hot-postgres          | 5432 | up     | 0.500000  | primary | 0          | false             | 0          
-       |                   |                        | 2020-06-01 15:37:08
- 1       | hot-postgres-replicas | 5432 | up     | 0.500000  | standby | 0          | true              | 0          
-       | streaming         | async                  | 2020-06-01 15:37:08
-```
-
-Then, run `SELECT 1` via `pgpool` service several times.
-
-```
-# psql -h 10.97.110.176 -U postgres -p 9999 -c "SELECT 1"
- ?column? 
-----------
-        1
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgpool-config
+  labels:
+    name: pgpool-config
+data:
+  pgpool.conf: |-
+    listen_addresses = '*'
+    port = 9999
+    socket_dir = '/var/run/pgpool'
+    pcp_listen_addresses = '*'
+    pcp_port = 9898
+    pcp_socket_dir = '/var/run/pgpool'
+    backend_hostname0 = 'mypostgres'
 ...
-
-# psql -h 10.97.110.176 -U postgres -p 9999 -c "SELECT 1"
- ?column? 
-----------
-        1
+  pool_hba.conf: |-
+    local   all         all                               trust
+    host    all         all         127.0.0.1/32          trust
+    host    all         all         ::1/128               trust
+    host    all         all         0.0.0.0/0             md5
 ```
 
-You can see that `select_cnt` columns increase at each backend.  
-Pgpool-II can load balance read queries across PostgreSQL servers.
+Note, to use the `pool_hba.conf` for client authentication, you need to turn on `enable_pool_hba`. Default is `off`. For more details on client authentication, please refer to [Pgpool-II docs](https://www.pgpool.net/docs/latest/en/html/client-authentication.html). 
+
+Then, you need to define environment variables that contain the `username` and `password` of PostgreSQL users for client authentication. For more details, see section [Register password to pool_passwd](#Register-password-to-pool_passwd).
+
+Run the following commands to create `ConfigMap` and Pgpool-II pod that references this `ConfigMap`.
 
 ```
-# psql -h 10.97.110.176 -U postgres -p 9999 -c "show pool_nodes"
- node_id |       hostname        | port | status | lb_weight |  role   | select_cnt | load_balance_node | replication
-_delay | replication_state | replication_sync_state | last_status_change  
----------+-----------------------+------+--------+-----------+---------+------------+-------------------+------------
--------+-------------------+------------------------+---------------------
- 0       | hot-postgres          | 5432 | up     | 0.500000  | primary | 2          | false             | 0          
-       |                   |                        | 2020-06-01 15:37:08
- 1       | hot-postgres-replicas | 5432 | up     | 0.500000  | standby | 3          | true              | 0          
-       | streaming         | async                  | 2020-06-01 15:37:08
+kubectl apply -f pgpool-configmap.yaml
+kubectl apply -f pgpool-deploy.yaml
 ```
 
-## Deploy Prometheus server
+After deploying Pgpool-II, you can see the Pgpool-II Pod and Services using `kubectl get pod` and `kubectl get svc` command. 
 
-Configure Prometheus Server using `ConfigMap`.
+## Pgpool-II configuration
 
+### Backend settings
+
+On kubernetes, you need to specify <strong>only two backend nodes</strong>. 
+Specify the primary service name to `backend_hostname0`, replica service name to `backend_hostname1`.
 ```
-# kubectl create namespace monitoring
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/prometheus-configmap.yaml --namespace=monitoring
-```
-
-Deploy Prometheus server.
-
-```
-# kubectl apply -f https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/prometheus.yaml --namespace=monitoring
-
-# kubectl get pod -n monitoring
-NAME                          READY   STATUS    RESTARTS   AGE
-prometheus-69bf7dc56f-c29jt   1/1     Running   0          69s
-
-# kubectl get svc -n monitoring
-NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-prometheus   ClusterIP   10.108.164.8   <none>        9090/TCP   2m50s
+backend_hostname0 = '<primary service name>'
+backend_hostname1 = '<replica service name>'
+backend_port0 = '5432'
+backend_port1 = '5432'
 ```
 
-Forward 9090 port of `prometheus-69bf7dc56f-c29jt` pod.
+### Automated failover
+
+Pgpool-II has the ability to periodically connect to the configured PostgreSQL backends and check the state of PostgreSQL. If an error is detected, Pgpool-II will trigger the failover. On Kubernetes, Kubernetes monitors the PostgreSQL pods, if a pod goes down, Kubernetes will restart a new one. You need to disable Pgpool-II's automated failover, becuase Pgpool-II's automated failover is not required on Kubernetes.
+
+Specify PostgreSQL node 0 as primary (`ALWAYS_PRIMARY`), because Service name doesn't change even if the primary or replica pod is sacled, restarted or failover occurred.
+```
+backend_flag0 ='ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
+backend_flag1 ='DISALLOW_TO_FAILOVER'
+failover_on_backend_error = off
+```
+
+### Register password to pool_passwd
+
+Pgpool-II performs authentication using pool_passwd file which contains the `username:password` of PostgreSQL users.
+
+At Pgpool-II pod startup, Pgpool-II automatically executes `pg_md5` command to generate [pool_passwd](https://www.pgpool.net/docs/latest/en/html/runtime-config-connection.html#GUC-POOL-PASSWD) based on the environment variables defined in the format `<some string>_USERNAME` and `<some string>_PASSWORD`.
+
+The environment variables that represent the username and password of PostgreSQL user must be defined in the following format:
 
 ```
-# kubectl port-forward -n monitoring prometheus-69bf7dc56f-c29jt 9090
-Forwarding from 127.0.0.1:9090 -> 9090
-Forwarding from [::1]:9090 -> 9090
+username: <some string>_USERNAME
+password: <some string>_PASSWORD
 ```
 
-Now, you can access http://localhost:9090 in your browser.
+Define the environment variables using Secret is the recommended way to keep user credentials secure. In most PostgreSQL Operators, several Secrets which define the PostgreSQL user's redentials will be automaticlly created when creating a PostgreSQL cluster. Use `kubectl get secret` command to check the existing Secrets.
+
+For example, `mypostgres-postgres-secret` is created to store the username and password of postgres user. To reference this secret, you can define the environment variables as below:
+
+```
+env:
+- name: POSTGRES_USERNAME
+  valueFrom:
+     secretKeyRef:
+       name: mypostgres-postgres-secret
+       key: username
+- name: POSTGRES_PASSWORD
+  valueFrom:
+     secretKeyRef:
+       name: mypostgres-postgres-secret
+       key: password
+```
+
+When Pgpool-II Pod is started, `pool_passwd` and `pcp.conf` are automatically generated under `/opt/pgpool-II/etc`.
+
+```
+$ kubectl exec <pgpool pod> -it -- cat /opt/pgpool-II/etc/pool_passwd
+postgres:md53175bce1d3201d16594cebf9d7eb3f9d
+
+$ kubectl exec <pgpool pod> -it -- cat /opt/pgpool-II/etc/pcp.conf
+postgres:e8a48653851e28c69d0506508fb27fc5
+```
+
+### Streaming replication check
+
+Pgpool-II has the ability to periodically connect to the configured PostgreSQL backends and check the replication delay. To use this feature, [sr_check_user](https://www.pgpool.net/docs/latest/ja/html/runtime-streaming-replication-check.html#GUC-SR-CHECK-USER) and [sr_check_password](https://www.pgpool.net/docs/latest/ja/html/runtime-streaming-replication-check.html#GUC-SR-CHECK-PASSWORD) are required. If `sr_check_password` is left blank, Pgpool-II will try to get the password for `sr_check_user` from `pool_passwd`.
+
+Below is an example that connects to PostgreSQL using `postgres` user every 10s to perform streaming replication check. Because `sr_check_password` isn't configured, Pgpool-II will try to get the password of `postgres` user from `pool_passwd`.
+
+```
+sr_check_period = 10
+sr_check_user = 'postgres'
+```
+
+Create a Secret to store the `username` and `password` of PostgreSQL user specified in `sr_check_user` and configure the environment variables to reference the created Secret. In most PostgreSQL Operators, several secrets which define the PostgreSQL user's redentials will be automaticlly created when creating a PostgreSQL cluster. Use `kubectl get secret` command to check the existing secrets.
+
+For example, the environment variables below reference the Secret `mypostgres-postgres-secret`.
+
+```
+env:
+- name: POSTGRES_USERNAME
+  valueFrom:
+     secretKeyRef:
+       name: mypostgres-postgres-secret
+       key: username
+- name: POSTGRES_PASSWORD
+  valueFrom:
+     secretKeyRef:
+       name: mypostgres-postgres-secret
+       key: password
+```   
+
+However, on Kubernetes Pgpool-II connects to any of the replicas rather than connecting to all the replicas. Even if there are multiple replicas, Pgpool-II manages them as one replica. Therefore, Pgpool-II may not be able to properly determine the replication delay.
+
+To disable this feature, configure the following parameter:
+
+```
+sr_check_period = 0
+```
+
+### SSL settings
+
+Turn on ssl to enable the SSL connections.
+
+```
+ssl = on
+```
+
+When `ssl = on`, at Pgpool-II startup, private key file and certificate file will be automatically generated under `/opt/pgpool-II/certs/`. Pgpool-II's configuration parameters `ssl_key` and `ssl_cert` will be automatically configured with the path of private key file and certificate file.
+
+In addition, to allow only SSL connections, add the following record into the `pool_hba.conf`. For more details on configuring `pool_hba.conf`, see section [Configure Pgpool-II using ConfigMap](#Configure-Pgpool-II-using-ConfigMap).
+```
+hostssl    all         all         0.0.0.0/0             md5
+```
+
+## Pgpool-II with monitoring
+
+[Pgpool-II Exporter](https://github.com/pgpool/pgpool2_exporter) is a Prometheus exporter for Pgpool-II metrics.
+
+Sample manifest `pgpool-deploy-monitor.yaml` is used to deploy Pgpool-II container and Pgpool-II Exporter container in the Pgpool-II Pod.
+
+```
+spec:
+  containers:
+  - name: pgpool
+    image: pgpool/pgpool
+  ...
+  - name: pgpool-stats
+    image: pgpool/pgpool2_exporter
+  ...
+```
+
+Download the sample manifest `pgpool-deploy-metrics.yaml`.
+
+```
+curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-metrics.yaml
+``` 
+
+Then, configure Pgpool-II and Pgpool-II Exporter. For more details on configuring Pgpool-II, see the previous section [Deploy Pgpool-II](#Deploy-Pgpool-II). Below is the settings of the environment variables used in Pgpool-II exporter container to connect to Pgpool-II.
+
+``` 
+env:
+- name: POSTGRES_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: mypostgres-postgres-secret
+      key: username
+- name: POSTGRES_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: mypostgres-postgres-secret
+      key: password
+- name: PGPOOL_SERVICE
+  value: "localhost"
+- name: PGPOOL_SERVICE_PORT
+  value: "9999"
+``` 
+
+After configuring Pgpool-II and Pgpool-II Exporter, deploy Pgpool-II.
+
+``` 
+kubectl apply -f pgpool-configmap.yaml
+kubectl apply -f pgpool-deploy-metrics.yaml
+``` 
