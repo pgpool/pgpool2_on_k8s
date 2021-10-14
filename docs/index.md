@@ -1,6 +1,6 @@
 # Run Pgpool-II on Kubernetes
 
-This documentation describes how to run [Pgpool-II](https://pgpool.net "Pgpool-II") to achieve read query load balancing and connection pooling on Kubernetes. 
+This documentation describes how to run [Pgpool-II](https://pgpool.net "Pgpool-II") to achieve read query load balancing and connection pooling on Kubernetes.
 
 ## Introduction
 
@@ -8,11 +8,11 @@ Because PostgreSQL is a stateful application and managing PostgreSQL has very sp
 
 There are several PostgreSQL operators, such as [Crunchy PostgreSQL Operator](https://github.com/CrunchyData/postgres-operator), [Zalando PostgreSQL Operator ](https://github.com/zalando/postgres-operator) and [KubeDB](https://github.com/kubedb/operator). However, these operators don't provide query load balancing functionality.
 
-This documentation describes how to combine PostgreSQL Operator with Pgpool-II to deploy a PostgreSQL cluster with query load balancing and connection pooling capability on Kubernetes. Pgpool-II can be combined with any of the PostgreSQL operators mentioned above. 
+This documentation describes how to combine PostgreSQL Operator with Pgpool-II to deploy a PostgreSQL cluster with query load balancing and connection pooling capability on Kubernetes. Pgpool-II can be combined with any of the PostgreSQL operators mentioned above.
 
 ## Prerequisites
 
-Before you start the configuration process, please check the following prerequisites. 
+Before you start the configuration process, please check the following prerequisites.
 - Make sure you have a Kubernetes cluster, and the `kubectl` is installed.
 - Kebernetes 1.15 or older is required.
 - PostgreSQL Operator and a PostgreSQL cluster are installed. For the installation of each PostgreSQL Operator, please see the documentation below:
@@ -28,7 +28,7 @@ Before you start the configuration process, please check the following prerequis
 
 Pgpool-II's health check, automated failover, watchdog and online recovery features aren't required on Kubernetes. You need to only enable load balancing and connection pooling.
 
-The Pgpool-II pod should work with the minimal configuration below: 
+The Pgpool-II pod should work with the minimal configuration below:
 ```
 backend_hostname0 = '<primary service name>'
 backend_hostname1 = '<replica service name>'
@@ -53,14 +53,14 @@ There are two ways to configure Pgpool-II.
 
 You may need to configure client authentication and more parameters to setup your production-ready environment. We recommend using a `ConfigMap` to configure `pgpool.conf` and `pool_hba.conf` to setup a production-ready database environment.
 
-The following sections describe how to configure and deploy Pgpool-II pod using environment variables and ConfigMap respectively. 
-These sections are using minimal configuration for demonstration purposes. We recommend that you read section [Pgpool-II configuration](#Pgpool-II-configuration) to see how to properly configure Pgpool-II. 
+The following sections describe how to configure and deploy Pgpool-II pod using environment variables and ConfigMap respectively.
+These sections are using minimal configuration for demonstration purposes. We recommend that you read section [Pgpool-II configuration](#Pgpool-II-configuration) to see how to properly configure Pgpool-II.
 
-You can download the example manifests used for deploying Pgpool-II from [here](https://github.com/pgpool/pgpool2_on_k8s). 
+You can download the example manifests used for deploying Pgpool-II from [here](https://github.com/pgpool/pgpool2_on_k8s).
 Note, we provide the example manifests as an example only to simplify the installation.
 All configuration options are not documented in the example manifests.
 you should consider updating the manifests based on your Kubernetes environment and configuration preferences.
-For more advanced configuration of Pgpool-II, please refer to the [Pgpool-II docs](https://www.pgpool.net/docs/latest/en/html/admin.html). 
+For more advanced configuration of Pgpool-II, please refer to the [Pgpool-II docs](https://www.pgpool.net/docs/latest/en/html/admin.html).
 
 ### Configure Pgpool-II using environment variables
 
@@ -69,16 +69,16 @@ Kubernetes environment variables can be passed to a container in a pod. You can 
 ```
 curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-minimal.yaml
 ```
-   
+
 Environment variables starting with `PGPOOL_PARAMS_` can be converted to Pgpool-II's configuration parameters and these values can override the default settings.
 
-On kubernetes, you need to specify <strong>only two backend nodes</strong>. Update `pgpool-deploy-minimal.yaml` based on your Kubernetes and PostgreSQL environment. 
+On kubernetes, you need to specify <strong>only two backend nodes</strong>. Update `pgpool-deploy-minimal.yaml` based on your Kubernetes and PostgreSQL environment.
 
-* `backend_hostname`: Specify the primary service name to `backend_hostname0` and the replica service name to `backend_hostname1`. 
-* `backend_flag`: Because failover is managed by Kubernetes, specify `DISALLOW_TO_FAILOVER` flag to `backend_flag` for both of the two nodes and `ALWAYS_PRIMARY` flag to `backend_flag0`. 
+* `backend_hostname`: Specify the primary service name to `backend_hostname0` and the replica service name to `backend_hostname1`.
+* `backend_flag`: Because failover is managed by Kubernetes, specify `DISALLOW_TO_FAILOVER` flag to `backend_flag` for both of the two nodes and `ALWAYS_PRIMARY` flag to `backend_flag0`.
 * `backend_data_directory`: The setting of `backend_data_directory` is not required.
 
-For example, the following environment variables defined in manifest, 
+For example, the following environment variables defined in manifest,
 
 ```
 env:
@@ -96,7 +96,7 @@ env:
   value: "DISALLOW_TO_FAILOVER"
 ```
 
-will be convert to the following configuration parameters in `pgpool.conf`. 
+will be convert to the following configuration parameters in `pgpool.conf`.
 
 ```
 backend_hostname0 = 'mypostgres'
@@ -126,7 +126,7 @@ curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-c
 curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy.yaml
 ```
 
-The `ConfigMap` is in the following format. You can update it based on your configuration preferences. 
+The `ConfigMap` is in the following format. You can update it based on your configuration preferences.
 
 ```
 apiVersion: v1
@@ -152,7 +152,12 @@ data:
     host    all         all         0.0.0.0/0             md5
 ```
 
-Note, to use the `pool_hba.conf` for client authentication, you need to turn on `enable_pool_hba`. Default is `off`. For more details on client authentication, please refer to [Pgpool-II docs](https://www.pgpool.net/docs/latest/en/html/client-authentication.html). 
+Note, if using [Crunchy PostgreSQL Operator](https://github.com/CrunchyData/postgres-operator) `pool_hba.conf` append
+```
+    host    all         all         0.0.0.0/0             scram-sha-256
+```
+
+Note, to use the `pool_hba.conf` for client authentication, you need to turn on `enable_pool_hba`. Default is `off`. For more details on client authentication, please refer to [Pgpool-II docs](https://www.pgpool.net/docs/latest/en/html/client-authentication.html).
 
 Then, you need to define environment variables that contain the `username` and `password` of PostgreSQL users for client authentication. For more details, see section [Register password to pool_passwd](#Register-password-to-pool_passwd).
 
@@ -163,13 +168,13 @@ kubectl apply -f pgpool-configmap.yaml
 kubectl apply -f pgpool-deploy.yaml
 ```
 
-After deploying Pgpool-II, you can see the Pgpool-II Pod and Services using `kubectl get pod` and `kubectl get svc` command. 
+After deploying Pgpool-II, you can see the Pgpool-II Pod and Services using `kubectl get pod` and `kubectl get svc` command.
 
 ## Pgpool-II configuration
 
 ### Backend settings
 
-On kubernetes, you need to specify <strong>only two backend nodes</strong>. 
+On kubernetes, you need to specify <strong>only two backend nodes</strong>.
 Specify the primary service name to `backend_hostname0`, replica service name to `backend_hostname1`.
 ```
 backend_hostname0 = '<primary service name>'
@@ -194,6 +199,8 @@ failover_on_backend_error = off
 Pgpool-II performs authentication using pool_passwd file which contains the `username:password` of PostgreSQL users.
 
 At Pgpool-II pod startup, Pgpool-II automatically executes `pg_md5` command to generate [pool_passwd](https://www.pgpool.net/docs/latest/en/html/runtime-config-connection.html#GUC-POOL-PASSWD) based on the environment variables defined in the format `<some string>_USERNAME` and `<some string>_PASSWORD`.
+
+If passwords are already encrypted, e.g. by [Crunchy PostgreSQL Operator](https://github.com/CrunchyData/postgres-operator) set `SKIP_PASSWORD_ENCRYPT` to skip md5 encryption.
 
 The environment variables that represent the username and password of PostgreSQL user must be defined in the following format:
 
@@ -257,7 +264,7 @@ env:
      secretKeyRef:
        name: mypostgres-postgres-secret
        key: password
-```   
+```
 
 However, on Kubernetes Pgpool-II connects to any of the replicas rather than connecting to all the replicas. Even if there are multiple replicas, Pgpool-II manages them as one replica. Therefore, Pgpool-II may not be able to properly determine the replication delay.
 
@@ -303,11 +310,11 @@ Download the sample manifest `pgpool-deploy-metrics.yaml`.
 
 ```
 curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool-deploy-metrics.yaml
-``` 
+```
 
 Then, configure Pgpool-II and Pgpool-II Exporter. For more details on configuring Pgpool-II, see the previous section [Deploy Pgpool-II](#Deploy-Pgpool-II). Below is the settings of the environment variables used in Pgpool-II exporter container to connect to Pgpool-II.
 
-``` 
+```
 env:
 - name: POSTGRES_USERNAME
   valueFrom:
@@ -323,11 +330,11 @@ env:
   value: "localhost"
 - name: PGPOOL_SERVICE_PORT
   value: "9999"
-``` 
+```
 
 After configuring Pgpool-II and Pgpool-II Exporter, deploy Pgpool-II.
 
-``` 
+```
 kubectl apply -f pgpool-configmap.yaml
 kubectl apply -f pgpool-deploy-metrics.yaml
-``` 
+```
