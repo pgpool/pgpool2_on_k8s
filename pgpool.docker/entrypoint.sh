@@ -91,8 +91,13 @@ do
     password=$(eval "echo \$${ev_username}_PASSWORD")
 
     if [[ -n "${username}"  && -n "${password}" ]]; then
-        ${PGPOOL_INSTALL_DIR}/bin/pg_md5 -m -f ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf -u ${username} ${password}
-        echo "${username}:"`${PGPOOL_INSTALL_DIR}/bin/pg_md5 ${password}` >> ${PGPOOL_INSTALL_DIR}/etc/pcp.conf
+        if [[ -z $SKIP_PASSWORD_ENCRYPT ]]; then
+            ${PGPOOL_INSTALL_DIR}/bin/pg_md5 -m -f ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf -u ${username} ${password}
+            echo "${username}:"`${PGPOOL_INSTALL_DIR}/bin/pg_md5 ${password}` >> ${PGPOOL_INSTALL_DIR}/etc/pcp.conf
+        else
+            echo "${username}:${password}" >> ${PGPOOL_INSTALL_DIR}/etc/pcp.conf
+            echo "${username}:${password}" >> ${PGPOOL_INSTALL_DIR}/etc/pool_passwd
+        fi
     else
         echo "password for $username user is not defined."
     fi
