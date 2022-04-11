@@ -197,10 +197,10 @@ Below is the list of environment variables available in the Pgpool-II container.
 * `<some string>_PASSWORD`: The password for PostgreSQL users. No defaults. (See [Register password to pool_passwd](#Register-password-to-pool_passwd))
 
 * `PGPOOL_PCP_USER`:
-  The username to use for PCP command. No defaults. (See [Generating pcp.conf](#Generating-pcp.conf))
+  The username to use for PCP command. No defaults. (See [Generating pcp.conf](#generating-pcpconf))
 
 * `PGPOOL_PCP_PASSWORD`:
-  The password to use for PCP command. No defaults. (See [Generating pcp.conf](#Generating-pcp.conf))
+  The password to use for PCP command. No defaults. (See [Generating pcp.conf](##generating-pcpconf))
 
 * `PGPOOL_PARAMS_<Pgpool-II configuration parameters>`:
   Configure the Pgpool-II parameters. Environment variables starting with `PGPOOL_PARAMS_` can be converted to Pgpool-II's configuration parameters and these values can override the default settings. (See [Configure Pgpool-II using environment variables](#Configure-Pgpool-II-using-environment-variables))
@@ -339,7 +339,7 @@ $ kubectl exec <pgpool pod> -it -- cat /opt/pgpool-II/etc/pcp.conf
 
 ### Streaming replication check
 
-Pgpool-II has the ability to periodically connect to the configured PostgreSQL backends and check the replication delay. To use this feature, [sr_check_user](https://www.pgpool.net/docs/latest/ja/html/runtime-streaming-replication-check.html#GUC-SR-CHECK-USER) and [sr_check_password](https://www.pgpool.net/docs/latest/ja/html/runtime-streaming-replication-check.html#GUC-SR-CHECK-PASSWORD) are required. If `sr_check_password` isn't set, Pgpool-II will try to get the password from `pool_passwd`.
+Pgpool-II has the ability to periodically connect to the configured PostgreSQL backends and check the replication delay. To use this feature, [sr_check_user](https://www.pgpool.net/docs/latest/en/html/runtime-streaming-replication-check.html#GUC-SR-CHECK-USER) and [sr_check_password](https://www.pgpool.net/docs/latest/en/html/runtime-streaming-replication-check.html#GUC-SR-CHECK-PASSWORD) are required. If `sr_check_password` isn't set, Pgpool-II will try to get the password from `pool_passwd`.
 
 Below is an example that connects to PostgreSQL using `postgres` user every 10s to perform streaming replication check. Because `sr_check_password` isn't set here, Pgpool-II will try to get the `postgres` user's password from `pool_passwd`.
 
