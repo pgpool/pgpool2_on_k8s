@@ -34,6 +34,10 @@ spec:
           value: "DISALLOW_TO_FAILOVER"
         - name: PGPOOL_PARAMS_FAILOVER_ON_BACKEND_ERROR
           value: "off"
+        - name: PGPOOL_PARAMS_ENABLE_POOL_HBA
+          value: "on"
+        - name: PGPOOL_PARAMS_SSL
+          value: "on"
         - name: POSTGRES_USERNAME
           valueFrom:
             secretKeyRef:
@@ -44,6 +48,36 @@ spec:
             secretKeyRef:
               name: mypostgres-postgres-secret
               key: password
+        - name: PGPOOL_PASSWORD_ENCRYPTION_METHOD
+          value: "scram-sha-256"
+        - name: PGPOOL_ENABLE_POOL_PASSWD
+          value: "true"
+        - name: PGPOOL_SKIP_PASSWORD_ENCRYPTION
+          value: "false"
+        # The following settings are not required when not using the Pgpool-II PCP command.
+        # To enable the following settings, you must define a secret that stores the PCP user's
+        # username and password.
+        #- name: PGPOOL_PCP_USER
+        #  valueFrom:
+        #    secretKeyRef:
+        #      name: pgpool-pcp-secret
+        #      key: username
+        #- name: PGPOOL_PCP_PASSWORD
+        #  valueFrom:
+        #    secretKeyRef:
+        #      name: pgpool-pcp-secret
+        #      key: password
+        # Configure your own TLS certificate.
+        #volumeMounts:
+        #- name: pgpool-tls
+        #  mountPath: /config/tls
+      #volumes:
+      # Configure your own TLS certificate.
+      # If not set, Pgpool-II will automatically generate the TLS certificate if ssl = on.
+      #- name: pgpool-tls
+      #  secret:
+      #    secretName: pgpool-tls
+
 ---
 apiVersion: v1
 kind: Service

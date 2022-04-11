@@ -21,7 +21,7 @@ data:
     backend_weight1 = 1
     backend_flag1 = 'DISALLOW_TO_FAILOVER'
     sr_check_period = 0
-    enable_pool_hba = off
+    health_check_period = 0
     backend_clustering_mode = 'streaming_replication'
     num_init_children = 32
     max_pool = 4
@@ -31,10 +31,12 @@ data:
     client_idle_limit = 0
     connection_cache = on
     load_balance_mode = on
-    ssl = off
+    ssl = on
+    enable_pool_hba = on
     failover_on_backend_error = off
-  pool_hba.conf: |-
-    local   all         all                               trust
-    host    all         all         127.0.0.1/32          trust
-    host    all         all         ::1/128               trust
-    host    all         all         0.0.0.0/0             md5
+    log_min_messages = warning
+  # If pool_hba.conf isn't configured, Pgpool-II will automatically generate it.
+  # Note that to use pool_hba.conf you must set enable_pool_hba = on.
+  #pool_hba.conf: |-
+  #  local      all         all                          trust
+  #  hostssl    all         all         0.0.0.0/0        scram-sha-256
