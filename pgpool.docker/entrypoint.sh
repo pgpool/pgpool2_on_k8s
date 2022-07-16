@@ -167,7 +167,10 @@ function generate_certs() {
     echo -e "\n" >> ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf
     echo "ssl_key = '${PGPOOL_INSTALL_DIR}/tls/tls.key'" >> ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf
     echo "ssl_cert = '${PGPOOL_INSTALL_DIR}/tls/tls.crt'" >> ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf
-    echo "ssl_ca_cert = '${PGPOOL_INSTALL_DIR}/tls/root.crt'" >> ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf
+
+    if [[ -f "${PGPOOL_INSTALL_DIR}/tls/root.crt" ]]; then
+        echo "ssl_ca_cert = '${PGPOOL_INSTALL_DIR}/tls/root.crt'" >> ${PGPOOL_INSTALL_DIR}/etc/pgpool.conf
+    fi
 }
 
 validate_pgpool_settings() {
