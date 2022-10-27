@@ -50,6 +50,11 @@ spec:
           mountPath: /config
         #- name: pgpool-tls
         #  mountPath: /config/tls
+        readinessProbe:
+          exec:
+            command: ["sh", "-c", "PGPASSWORD=$POSTGRES_PASSWORD psql -w -U $POSTGRES_USERNAME -c 'SELECT 1' -h localhost"]
+          timeoutSeconds: 2
+          periodSeconds: 5
       volumes:
       - name: pgpool-config
         configMap:
