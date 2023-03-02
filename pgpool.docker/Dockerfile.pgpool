@@ -1,4 +1,4 @@
-FROM alpine:3.11
+FROM alpine:3.17
 
 ARG PGPOOL_VER
 
@@ -28,6 +28,7 @@ RUN set -eux \
         libbsd-doc \
         linux-headers \
         make \
+        patch \
         openssl-dev \
     \
     && apk add --no-cache \
