@@ -1,77 +1,92 @@
-FROM alpine:3.17
+ARG         registry=docker.io/library
+ARG         image=alpine:3.17
 
-ARG PGPOOL_VER
+# 
+# BASE
+# 
+FROM        ${registry}/${image} AS base
 
-ENV PGPOOL_INSTALL_DIR /opt/pgpool-II
-ENV PGPOOL_CONF_VOLUME /config
+ARG         PGPOOL_VER=4.4.3
+
+ENV         PGPOOL_INSTALL_DIR=/opt/pgpool-II \
+            PGPOOL_CONF_VOLUME=/config
 
 # Create postgres user used to start Pgpool-II
-RUN set -ex; \ 
-    addgroup -g 70 -S postgres; \
-    adduser -u 70 -S -D -G postgres -H -h /var/lib/pgsql -s /bin/sh postgres; \
-    mkdir -p /var/lib/pgsql; \
-    chown -R postgres:postgres /var/lib/pgsql
+RUN         set -ex; \ 
+            \
+            addgroup -g 70 -S postgres; \
+            adduser -u 70 -S -D -G postgres -H -h /var/lib/pgsql -s /bin/sh postgres; \
+            mkdir -p /var/lib/pgsql; \
+            chown -R postgres:postgres /var/lib/pgsql;
+
+RUN         apk add --no-cache \
+                bash \
+                postgresql \
+                openssl \
+                sed \
+                sudo \
+                libmemcached-dev 
+
+
+# 
+# BUILD
+# 
+FROM        base AS build
 
 # Install packages
-RUN set -eux \
-    \
-    && apk add --no-cache --virtual fetch-dependencies \
-        ca-certificates \
-        tar \
-    \
-    && apk add --no-cache --virtual build-dependencies \
-        bison \
-        flex \
-        file \
-        gcc \
-        g++ \
-        libbsd-doc \
-        linux-headers \
-        make \
-        patch \
-        openssl-dev \
-    \
-    && apk add --no-cache \
-        bash \
-        postgresql \
-        postgresql-dev \
-        openssl \
-        sed \
-        sudo
+RUN         set -eux \
+            \
+            && apk add --no-cache --virtual fetch-dependencies \
+                ca-certificates \
+                tar \
+            \
+            && apk add --no-cache --virtual build-dependencies \
+                bison \
+                flex \
+                file \
+                gcc \
+                g++ \
+                libbsd-doc \
+                linux-headers \
+                make \
+                patch \
+                openssl-dev \
+                postgresql-dev 
 
-COPY fix_compile_error.patch /tmp/pgpool/
-COPY entrypoint.sh ${PGPOOL_INSTALL_DIR}/bin/
-COPY start.sh ${PGPOOL_INSTALL_DIR}/bin/
+COPY        fix_compile_error.patch /tmp/pgpool/
 
 # Install Pgpool-II
-RUN set -eux \
-    \
-    && wget -O /tmp/pgpool.tar.gz "https://pgpool.net/mediawiki/images/pgpool-II-${PGPOOL_VER}.tar.gz" \
-    && tar -zxf /tmp/pgpool.tar.gz -C /tmp/pgpool --strip-components 1 \
-    && cd /tmp/pgpool \
-    && patch -p1 < fix_compile_error.patch \
-    && ./configure \
-        --prefix=${PGPOOL_INSTALL_DIR} \
-        --with-openssl \
-    && make -j "$(nproc)" \
-    && make install \
-    \
-    && mkdir /var/run/pgpool \
-    && mkdir /var/run/postgresql \
-    && chown -R postgres:postgres /var/run/pgpool /var/run/postgresql ${PGPOOL_INSTALL_DIR} \
-    && echo 'postgres ALL=NOPASSWD: /sbin/ip' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 \
-    && echo 'postgres ALL=NOPASSWD: /usr/sbin/arping' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1
+RUN         set -eux \
+            \
+            && wget -O /tmp/pgpool.tar.gz "https://pgpool.net/mediawiki/images/pgpool-II-${PGPOOL_VER}.tar.gz" \
+            && tar -zxf /tmp/pgpool.tar.gz -C /tmp/pgpool --strip-components 1 \
+            && cd /tmp/pgpool \
+            && patch -p1 < fix_compile_error.patch \
+            && ./configure \
+                --prefix=${PGPOOL_INSTALL_DIR} \
+                --with-openssl \
+                --with-memcached=/usr/local \
+            && make -j "$(nproc)" \
+            && make install 
 
 
-RUN set -eux \
-    \
-    && apk del --purge  --rdepends fetch-dependencies build-dependencies \
-    && rm -rf /tmp/*
+# 
+# PACKAGE
+# 
+FROM        base AS package
 
+COPY        entrypoint.sh start.sh ${PGPOOL_INSTALL_DIR}/bin/
+COPY        --from=build \
+            ${PGPOOL_INSTALL_DIR} ${PGPOOL_INSTALL_DIR}
 
-USER postgres
+RUN         set -eux \
+            \
+            mkdir -p /var/run/pgpool /var/run/postgresql \
+            && chown -R postgres:postgres /var/run/pgpool /var/run/postgresql ${PGPOOL_INSTALL_DIR} \
+            && echo 'postgres ALL=NOPASSWD: /sbin/ip' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1 \
+            && echo 'postgres ALL=NOPASSWD: /usr/sbin/arping' | sudo EDITOR='tee -a' visudo >/dev/null 2>&1
 
-ENTRYPOINT ["/opt/pgpool-II/bin/entrypoint.sh"]
-CMD ["/opt/pgpool-II/bin/start.sh"]
+USER        postgres
 
-EXPOSE 9999
+ENTRYPOINT  ["/opt/pgpool-II/bin/entrypoint.sh"]
+CMD         ["/opt/pgpool-II/bin/start.sh"]
